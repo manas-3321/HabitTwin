@@ -7,6 +7,7 @@ import {
   Info,
   WifiOff,
   Compass,
+  Trophy,
 } from 'lucide-react';
 import {
   fetchHabits,
@@ -22,6 +23,7 @@ import Header from './components/Header';
 import ScenarioComparison from './components/ScenarioComparison';
 import TrajectoryCharts from './components/TrajectoryCharts';
 import WhatIfSimulator from './components/WhatIfSimulator';
+import GenZAchievements from './components/GenZAchievements';
 import FutureLetter from './components/FutureLetter';
 import BehavioralTrends from './components/BehavioralTrends';
 import HabitTracker from './components/HabitTracker';
@@ -29,6 +31,7 @@ import HabitTracker from './components/HabitTracker';
 const TABS = [
   { id: 'twins', label: 'Future Twins', icon: Compass },
   { id: 'whatif', label: 'What-If Lab', icon: Sliders },
+  { id: 'achievements', label: 'Achievements 🏆', icon: Trophy },
   { id: 'letter', label: 'Future Letter', icon: Mail },
   { id: 'habits', label: 'Daily Check-In & Trends', icon: CalendarCheck },
 ];
@@ -50,11 +53,14 @@ export default function App() {
   // What-If Simulator State
   const [whatIfInputs, setWhatIfInputs] = useState({
     sleep_hours: 7.5,
+    study_hours: 4.0,
+    study_screen_hours: 3.5,
+    leisure_screen_hours: 2.0,
     screen_time_hours: 5.5,
     physical_activity_minutes: 45,
-    study_hours: 4.0,
-    daily_spending: 350,
-    monthly_income: 15000,
+    daily_spending: 50,
+    monthly_income: 1500,
+    monthly_allowance: 1500,
     study_mode: 'regular',
     mental_mood: 'balanced',
   });
@@ -165,34 +171,53 @@ export default function App() {
 
   // Real-time debounced What-If slider handler
   const handleSliderChange = (key, val) => {
-    const updated = { ...whatIfInputs, [key]: val };
-    setWhatIfInputs(updated);
-
-    if (whatIfTimerRef.current) clearTimeout(whatIfTimerRef.current);
-    whatIfTimerRef.current = setTimeout(async () => {
-      try {
-        const predRes = await runPrediction({
-          horizon,
-          whatIf: updated,
-          monthlyIncome: updated.monthly_income,
-        });
-        setPrediction(predRes);
-      } catch (err) {
-        console.error('What-If update failed:', err);
+    setWhatIfInputs((prev) => {
+      const updated = { ...prev, [key]: val };
+      if (key === 'study_screen_hours' || key === 'leisure_screen_hours') {
+        const sScreen = key === 'study_screen_hours' ? val : (prev.study_screen_hours ?? 3.5);
+        const lScreen = key === 'leisure_screen_hours' ? val : (prev.leisure_screen_hours ?? 2.0);
+        updated.screen_time_hours = Math.round((sScreen + lScreen) * 10) / 10;
       }
-    }, 150);
+      if (key === 'monthly_allowance' || key === 'monthly_income') {
+        updated.monthly_income = val;
+        updated.monthly_allowance = val;
+        updated.daily_spending = Math.round(val / 30);
+      }
+
+      if (whatIfTimerRef.current) clearTimeout(whatIfTimerRef.current);
+      whatIfTimerRef.current = setTimeout(async () => {
+        try {
+          const predRes = await runPrediction({
+            horizon,
+            whatIf: updated,
+            monthlyIncome: updated.monthly_income,
+          });
+          setPrediction(predRes);
+        } catch (err) {
+          console.error('What-If update failed:', err);
+        }
+      }, 150);
+
+      return updated;
+    });
   };
 
   const handleResetWhatIf = async () => {
     if (!prediction?.baseline_habits) return;
     const b = prediction.baseline_habits;
+    const studyH = b.study_hours ?? 4.0;
+    const studyScreen = Math.min(studyH, 3.5);
+    const leisureScreen = Math.max(0, (b.screen_time_hours ?? 5.5) - studyScreen);
     const resetValues = {
       sleep_hours: b.sleep_hours,
+      study_hours: studyH,
+      study_screen_hours: studyScreen,
+      leisure_screen_hours: leisureScreen,
       screen_time_hours: b.screen_time_hours,
       physical_activity_minutes: Math.round(b.physical_activity_minutes),
-      study_hours: b.study_hours,
-      daily_spending: Math.round(b.daily_spending),
-      monthly_income: 15000,
+      daily_spending: 50,
+      monthly_income: 1500,
+      monthly_allowance: 1500,
       study_mode: b.study_mode || 'regular',
       mental_mood: b.mental_mood || 'balanced',
     };
@@ -209,10 +234,13 @@ export default function App() {
     const healthy = {
       sleep_hours: 8.0,
       study_hours: 4.5,
-      screen_time_hours: 5.5, // Total screen time includes 4.5h study + 1.0h light leisure
+      study_screen_hours: 4.0,
+      leisure_screen_hours: 1.5,
+      screen_time_hours: 5.5,
       physical_activity_minutes: 50,
-      daily_spending: 220,
-      monthly_income: whatIfInputs.monthly_income,
+      daily_spending: 50,
+      monthly_income: 1500,
+      monthly_allowance: 1500,
       study_mode: 'regular',
       mental_mood: 'sharp',
     };
@@ -377,7 +405,18 @@ export default function App() {
               </div>
             )}
 
-            {/* Tab 3: Letter From Future Self */}
+            {/* Tab 3: Gen Z Achievements & Continuous Progress Milestones */}
+            {activeTab === 'achievements' && (
+              <div className="space-y-8">
+                <GenZAchievements
+                  logs={logs}
+                  analysis={analysis}
+                  userName={userName}
+                />
+              </div>
+            )}
+
+            {/* Tab 4: Letter From Future Self */}
             {activeTab === 'letter' && (
               <FutureLetter
                 letter={letter}

@@ -14,6 +14,7 @@ import {
   Brain,
 } from 'lucide-react';
 import FutureTwinAvatar from './FutureTwinAvatar';
+import { getCgpaColorClass, getCgpaBadgeClass, getCgpaHeatTile } from '../utils/cgpaColors';
 
 function formatMoney(amount) {
   const sign = amount < 0 ? '-' : '';
@@ -117,7 +118,7 @@ function ScenarioSummaryCard({ scenario, accent, labelBadge }) {
             <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
             <span>Projected CGPA</span>
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+          <div className={`text-xl font-bold mt-1 ${getCgpaColorClass(metrics.academic_gpa)}`}>
             {metrics.academic_gpa.toFixed(2)}
             <span className="text-xs font-normal text-slate-400 ml-1">/ 10.0</span>
           </div>
@@ -346,8 +347,14 @@ export default function ScenarioComparison({ prediction }) {
         <div className="space-y-3 pt-2">
           {PILLARS.map((pillar) => {
             const Icon = pillar.icon;
-            const curHeat = getPillarHeat(pillar.curScore);
-            const impHeat = getPillarHeat(pillar.impScore);
+            const curHeat =
+              pillar.id === 'academics'
+                ? getCgpaHeatTile(cur.metrics.academic_gpa)
+                : getPillarHeat(pillar.curScore);
+            const impHeat =
+              pillar.id === 'academics'
+                ? getCgpaHeatTile(imp.metrics.academic_gpa)
+                : getPillarHeat(pillar.impScore);
 
             return (
               <div

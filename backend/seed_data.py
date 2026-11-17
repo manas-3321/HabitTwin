@@ -94,16 +94,19 @@ def generate_sample_habit_data(days: int = 150) -> List[dict]:
     return sample_records
 
 
-def seed_database_records(db: Session, overwrite: bool = True) -> int:
+def seed_database_records(db, overwrite: bool = True) -> int:
     """
-    Clears existing habit logs (if overwrite is True) and inserts 30 realistic demo logs.
-    Returns the count of seeded entries.
+    Clears existing habit logs (if overwrite is True) and inserts realistic demo logs.
+    Supports both JsonHabitDB and SQLAlchemy Session.
     """
+    records = generate_sample_habit_data(days=150)
+    if hasattr(db, "seed"):
+        return db.seed(records, overwrite=overwrite)
+
     if overwrite:
         db.query(HabitLog).delete()
         db.commit()
 
-    records = generate_sample_habit_data(days=150)
     for rec in records:
         log_entry = HabitLog(**rec)
         db.add(log_entry)

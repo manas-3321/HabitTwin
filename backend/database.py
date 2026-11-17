@@ -1,43 +1,23 @@
 """
 HabitTwin Database Module
-Configures SQLite database connection using SQLAlchemy.
-SQLite is lightweight, serverless, and stores all user habit data locally in a single file.
+Delegates persistence to the human-readable JSON Database Engine (habittwin_data.json).
+Provides backward-compatible imports for get_db, init_db, and SQLAlchemy Base.
 """
 
-import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from .json_db import get_db, json_db, HabitLogRecord, JSON_FILE_PATH
 
-# Database file location in backend directory
-DB_FILE = os.path.join(os.path.dirname(__file__), "habittwin.db")
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
-
-# check_same_thread=False is required for SQLite when accessed across multiple FastAPI worker threads
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
-
-def get_db():
-    """
-    FastAPI dependency that yields a SQLAlchemy database session per request
-    and guarantees it closes after the response is sent.
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+DB_FILE = JSON_FILE_PATH
 
 
 def init_db():
-    """
-    Creates all database tables defined in models if they do not exist.
-    """
-    from . import models  # noqa: F401
-    Base.metadata.create_all(bind=engine)
+    """Initializes JSON data store if not present."""
+    json_db._ensure_file()
+
+
+# Backward compatibility shims for models and ORM type annotations
+try:
+    from sqlalchemy.orm import declarative_base
+    Base = declarative_base()
+except Exception:
+    class Base:
+        pass

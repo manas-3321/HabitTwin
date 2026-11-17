@@ -1,21 +1,19 @@
 """
-HabitTwin FastAPI Application Entry Point
-Exposes RESTful endpoints for habit logging, behavioral analytics,
-predictive multi-scenario simulations, and LLM-powered future-self letters.
+HabitTwin FastAPI Backend Application
+Powers future self simulation, habit analytics, ML predictions, and AI letters.
+Now persisted via a lightweight, human-readable JSON Database (habittwin_data.json).
 """
 
 import os
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import List
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from .database import get_db, init_db
-from .models import HabitLog
+from .json_db import get_db, json_db, HabitLogRecord, JsonHabitDB
 from .schemas import (
     HabitLogCreate,
     HabitLogUpdate,
@@ -36,29 +34,29 @@ from .seed_data import seed_database_records
 async def lifespan(app: FastAPI):
     """
     Application startup and shutdown lifecycle handler.
-    Initializes database tables on launch.
+    Initializes JSON database on launch.
     """
-    init_db()
+    json_db._ensure_file()
     yield
 
 
 app = FastAPI(
-    title="HabitTwin: Your Digital Future Self API",
-    description=(
-        "An AI-powered behavioral twin that simulates how everyday habits "
-        "shape future lifestyle, academic performance, health, and financial well-being."
-    ),
-    version="1.0.0",
+    title="HabitTwin API",
+    description="Your Digital Future Self: Predictive behavioral engine, habit analytics, and future self letters.",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# Configure CORS for local development with React + Vite
-cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
-
+# Enable CORS for local Vite development frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,16 +64,17 @@ app.add_middleware(
 
 
 # =====================================================================
-# 1. Health & Disclaimer Endpoint
+# 1. Health & Status Endpoints
 # =====================================================================
 
-@app.get("/api/health", tags=["System"])
+@app.get("/api/health", tags=["Health"])
 def health_check():
-    """Returns system status, version, and illustrative simulation disclaimer."""
+    """Health check endpoint to verify backend service and JSON storage status."""
     return {
-        "status": "healthy",
-        "service": "HabitTwin Core Backend",
-        "version": "1.0.0",
+        "status": "online",
+        "service": "HabitTwin Predictive Core",
+        "version": "2.0.0",
+        "storage": "JSON Document Store (habittwin_data.json)",
         "disclaimer": (
             "Illustrative Simulation Disclaimer: HabitTwin projections are mathematical models "
             "intended for self-reflection and habit design. They do not constitute formal medical, "
@@ -85,17 +84,16 @@ def health_check():
 
 
 # =====================================================================
-# 2. Daily Habit Tracking CRUD Endpoints
+# 2. Daily Habit Tracking CRUD Endpoints (JSON File Backed)
 # =====================================================================
 
 @app.get("/api/habits", response_model=List[HabitLogResponse], tags=["Habits"])
 def get_habit_logs(
     limit: int = Query(365, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: JsonHabitDB = Depends(get_db)
 ):
-    """Retrieves habit logs sorted by date descending."""
-    logs = db.query(HabitLog).order_by(HabitLog.date.desc()).limit(limit).all()
-    # Format response including computed total_spending
+    """Retrieves habit logs from the JSON database sorted by date descending."""
+    logs = db.get_all(limit=limit)
     return [
         HabitLogResponse(
             id=log.id,
@@ -121,29 +119,13 @@ def get_habit_logs(
 @app.post("/api/habits", response_model=HabitLogResponse, status_code=status.HTTP_201_CREATED, tags=["Habits"])
 def create_or_upsert_habit_log(
     payload: HabitLogCreate,
-    db: Session = Depends(get_db)
+    db: JsonHabitDB = Depends(get_db)
 ):
     """
-    Creates a new daily habit log.
+    Creates a new daily habit log in JSON storage.
     If an entry for this date already exists, updates it cleanly (upsert).
     """
-    existing = db.query(HabitLog).filter(HabitLog.date == payload.date).first()
-
-    if existing:
-        # Update existing record
-        for key, val in payload.model_dump().items():
-            setattr(existing, key, val)
-        db.commit()
-        db.refresh(existing)
-        target = existing
-    else:
-        # Insert fresh log
-        new_log = HabitLog(**payload.model_dump())
-        db.add(new_log)
-        db.commit()
-        db.refresh(new_log)
-        target = new_log
-
+    target = db.upsert(payload.model_dump())
     return HabitLogResponse(
         id=target.id,
         date=target.date,
@@ -167,19 +149,12 @@ def create_or_upsert_habit_log(
 def update_habit_log(
     log_id: int,
     payload: HabitLogUpdate,
-    db: Session = Depends(get_db)
+    db: JsonHabitDB = Depends(get_db)
 ):
-    """Updates specific fields of an existing habit log."""
-    log = db.query(HabitLog).filter(HabitLog.id == log_id).first()
+    """Updates specific fields of an existing habit log in JSON storage."""
+    log = db.update(log_id, payload.model_dump(exclude_unset=True))
     if not log:
         raise HTTPException(status_code=404, detail="Habit log not found")
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for key, val in update_data.items():
-        setattr(log, key, val)
-
-    db.commit()
-    db.refresh(log)
 
     return HabitLogResponse(
         id=log.id,
@@ -201,30 +176,27 @@ def update_habit_log(
 
 
 @app.delete("/api/habits/clear", tags=["Habits"])
-def clear_all_habits(db: Session = Depends(get_db)):
-    """Deletes all habit records to allow a fresh start."""
-    count = db.query(HabitLog).delete()
-    db.commit()
+def clear_all_habits(db: JsonHabitDB = Depends(get_db)):
+    """Deletes all habit records from JSON storage to allow a fresh start."""
+    count = db.clear()
     return {"message": f"Cleared {count} habit logs"}
 
 
 @app.delete("/api/habits/{log_id}", status_code=status.HTTP_200_OK, tags=["Habits"])
-def delete_habit_log(log_id: int, db: Session = Depends(get_db)):
-    """Deletes an individual habit log entry."""
-    log = db.query(HabitLog).filter(HabitLog.id == log_id).first()
-    if not log:
+def delete_habit_log(log_id: int, db: JsonHabitDB = Depends(get_db)):
+    """Deletes an individual habit log entry from JSON storage."""
+    deleted = db.delete(log_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Habit log not found")
 
-    db.delete(log)
-    db.commit()
     return {"message": f"Habit log {log_id} deleted successfully"}
 
 
 @app.post("/api/habits/seed", tags=["Habits"])
-def seed_demo_data(db: Session = Depends(get_db)):
-    """Populates 30 days of realistic, nuanced demo student habit logs."""
+def seed_demo_data(db: JsonHabitDB = Depends(get_db)):
+    """Populates 150 days of realistic, nuanced demo student habit logs in JSON file."""
     count = seed_database_records(db, overwrite=True)
-    return {"message": f"Successfully loaded {count} days of sample habit data for demo"}
+    return {"message": f"Successfully loaded {count} days of sample habit data for demo into JSON database"}
 
 
 # =====================================================================
@@ -232,12 +204,12 @@ def seed_demo_data(db: Session = Depends(get_db)):
 # =====================================================================
 
 @app.get("/api/analysis", response_model=BehavioralAnalysisResponse, tags=["Analytics"])
-def get_behavioral_analysis(db: Session = Depends(get_db)):
+def get_behavioral_analysis(db: JsonHabitDB = Depends(get_db)):
     """
     Computes statistical trends, habit averages, streaks, consistency score,
-    Pearson correlation matrix, and personalized behavioral insights.
+    Pearson correlation matrix, and personalized behavioral insights from JSON logs.
     """
-    logs = db.query(HabitLog).all()
+    logs = db.get_all()
     analysis = analyze_behaviors(logs)
     return analysis
 
@@ -249,7 +221,7 @@ def get_behavioral_analysis(db: Session = Depends(get_db)):
 @app.post("/api/predict", response_model=PredictionResponse, tags=["Simulation"])
 def predict_future_trajectories(
     payload: PredictionRequest,
-    db: Session = Depends(get_db)
+    db: JsonHabitDB = Depends(get_db)
 ):
     """
     Runs future-self predictive simulation:
@@ -259,7 +231,7 @@ def predict_future_trajectories(
     - Predicts Academic (GPA), Health (vitality & burnout), Finance, and Lifestyle
     - Derives dynamic visual avatar states and time-series trajectories
     """
-    logs = db.query(HabitLog).all()
+    logs = db.get_all()
     predictions = run_predictive_simulation(
         logs=logs,
         horizon=payload.horizon,
@@ -276,15 +248,14 @@ def predict_future_trajectories(
 @app.post("/api/future-letter", response_model=LetterResponse, tags=["AI Letter"])
 def generate_future_letter(
     payload: LetterRequest,
-    db: Session = Depends(get_db)
+    db: JsonHabitDB = Depends(get_db)
 ):
     """
     Generates an emotionally resonant first-person letter from your future self.
     Integrates with Anthropic Claude (via ANTHROPIC_API_KEY) with automatic fallback
     to the built-in intelligent narrative engine if key is absent or offline.
     """
-    logs = db.query(HabitLog).all()
-    # Run prediction to feed exact contextual numbers to the LLM prompt
+    logs = db.get_all()
     sim = run_predictive_simulation(
         logs=logs,
         horizon=payload.horizon,
@@ -292,7 +263,6 @@ def generate_future_letter(
         monthly_income=15000.0,
     )
 
-    # Select target scenario metrics
     target_scenario = sim.scenario_b_improved if payload.scenario == "improved" else sim.scenario_a_current
     habits = target_scenario.assumed_habits
     metrics = target_scenario.metrics.model_dump()

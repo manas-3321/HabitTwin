@@ -7,8 +7,9 @@ import { motion } from 'framer-motion';
  * lighting, surroundings, and accessories dynamically adapt to projected habits.
  * Zero external image dependencies.
  */
-export default function FutureTwinAvatar({ avatar, title, subtitle, compact = false }) {
-  if (!avatar) return null;
+export default function FutureTwinAvatar({ avatar, avatarState, title, subtitle, compact = false }) {
+  const effectiveAvatar = avatar || avatarState;
+  if (!effectiveAvatar) return null;
 
   const {
     posture = 'neutral',
@@ -19,7 +20,7 @@ export default function FutureTwinAvatar({ avatar, title, subtitle, compact = fa
     accessories = [],
     environment_theme = 'balanced_workspace',
     badge_title = 'Steady Track',
-  } = avatar;
+  } = effectiveAvatar;
 
   const isSlouched = posture === 'slouched';
   const isConfident = posture === 'upright_confident';

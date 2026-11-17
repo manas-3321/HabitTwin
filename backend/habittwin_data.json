@@ -1,0 +1,21 @@
+[
+  {
+    "id": 1,
+    "date": "2026-11-17",
+    "sleep_hours": 9.0,
+    "screen_time_hours": 4.5,
+    "physical_activity_minutes": 60.0,
+    "study_hours": 5.5,
+    "spending_food": 100.0,
+    "spending_entertainment": 0.0,
+    "spending_study": 0.0,
+    "spending_shopping": 0.0,
+    "spending_misc": 0.0,
+    "study_mode": "regular",
+    "mental_mood": "balanced",
+    "notes": "",
+    "total_spending": 100.0,
+    "created_at": "2026-11-17T16:19:35.666295",
+    "updated_at": "2026-11-17T16:19:35.666295"
+  }
+]
