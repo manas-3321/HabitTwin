@@ -19,6 +19,7 @@ import {
   runPrediction,
   generateFutureLetter,
 } from './api/habitApi';
+import { getFallbackPrediction } from './utils/fallbackPrediction';
 import Header from './components/Header';
 import ScenarioComparison from './components/ScenarioComparison';
 import TrajectoryCharts from './components/TrajectoryCharts';
@@ -116,10 +117,14 @@ export default function App() {
               daily_spending: Math.round(predRes.baseline_habits.daily_spending),
             }));
           }
+        } else {
+          // Fallback simulation ensures the UI is never blank even before backend connects
+          setPrediction(getFallbackPrediction(targetHorizon, customWhatIf || whatIfInputs));
         }
       } catch (err) {
         console.error('Failed loading dashboard data:', err);
         setOfflineMode(true);
+        setPrediction((prev) => prev || getFallbackPrediction(targetHorizon, customWhatIf || whatIfInputs));
       } finally {
         setLoadingInitial(false);
       }
@@ -184,19 +189,24 @@ export default function App() {
         updated.daily_spending = Math.round(val / 30);
       }
 
-      if (whatIfTimerRef.current) clearTimeout(whatIfTimerRef.current);
-      whatIfTimerRef.current = setTimeout(async () => {
-        try {
-          const predRes = await runPrediction({
-            horizon,
-            whatIf: updated,
-            monthlyIncome: updated.monthly_income,
-          });
-          setPrediction(predRes);
-        } catch (err) {
-          console.error('What-If update failed:', err);
-        }
-      }, 150);
+      if (offlineMode) {
+        setPrediction(getFallbackPrediction(horizon, updated));
+      } else {
+        if (whatIfTimerRef.current) clearTimeout(whatIfTimerRef.current);
+        whatIfTimerRef.current = setTimeout(async () => {
+          try {
+            const predRes = await runPrediction({
+              horizon,
+              whatIf: updated,
+              monthlyIncome: updated.monthly_income,
+            });
+            setPrediction(predRes);
+          } catch (err) {
+            console.error('What-If update failed:', err);
+            setPrediction(getFallbackPrediction(horizon, updated));
+          }
+        }, 150);
+      }
 
       return updated;
     });
@@ -222,12 +232,20 @@ export default function App() {
       mental_mood: b.mental_mood || 'balanced',
     };
     setWhatIfInputs(resetValues);
-    const predRes = await runPrediction({
-      horizon,
-      whatIf: resetValues,
-      monthlyIncome: resetValues.monthly_income,
-    });
-    setPrediction(predRes);
+    if (!offlineMode) {
+      try {
+        const predRes = await runPrediction({
+          horizon,
+          whatIf: resetValues,
+          monthlyIncome: resetValues.monthly_income,
+        });
+        setPrediction(predRes);
+      } catch {
+        setPrediction(getFallbackPrediction(horizon, resetValues));
+      }
+    } else {
+      setPrediction(getFallbackPrediction(horizon, resetValues));
+    }
   };
 
   const handleApplyHealthyPreset = async () => {
@@ -245,12 +263,20 @@ export default function App() {
       mental_mood: 'sharp',
     };
     setWhatIfInputs(healthy);
-    const predRes = await runPrediction({
-      horizon,
-      whatIf: healthy,
-      monthlyIncome: healthy.monthly_income,
-    });
-    setPrediction(predRes);
+    if (!offlineMode) {
+      try {
+        const predRes = await runPrediction({
+          horizon,
+          whatIf: healthy,
+          monthlyIncome: healthy.monthly_income,
+        });
+        setPrediction(predRes);
+      } catch {
+        setPrediction(getFallbackPrediction(horizon, healthy));
+      }
+    } else {
+      setPrediction(getFallbackPrediction(horizon, healthy));
+    }
   };
 
   const handleLoadSampleData = async () => {
@@ -308,16 +334,15 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Friendly Offline Notice if Backend is Not Running */}
+        {/* Friendly Notice when in Offline/Preview Mode */}
         {offlineMode && (
-          <div className="rounded-2xl p-4 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center gap-3 text-xs sm:text-sm text-amber-800 dark:text-amber-200">
-            <WifiOff className="w-5 h-5 shrink-0 text-amber-600" />
-            <div>
-              <strong>Backend is currently offline.</strong> Start the Python server with{' '}
-              <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900 font-mono text-xs">
-                .\backend\.venv\Scripts\python.exe -m backend.run_server
-              </code>{' '}
-              to unlock live predictions and future letters.
+          <div className="rounded-2xl p-4 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 text-xs sm:text-sm text-amber-800 dark:text-amber-200">
+            <div className="flex items-center gap-3">
+              <WifiOff className="w-5 h-5 shrink-0 text-amber-600" />
+              <div>
+                <strong>Backend not connected.</strong> Showing instant offline simulation preview.
+                Connect your Render backend URL in Vercel settings (as <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900 font-mono text-xs">VITE_API_URL</code>) to activate live ML sync.
+              </div>
             </div>
           </div>
         )}
