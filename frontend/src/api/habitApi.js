@@ -6,7 +6,10 @@
  */
 
 // Support configurable backend URL for production cloud deployments (Vercel/Render)
-const ENV_API = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '';
+const PROD_DEFAULT_BACKEND = 'https://habittwin.onrender.com';
+const ENV_API = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/$/, '')
+  : (import.meta.env.PROD ? PROD_DEFAULT_BACKEND : '');
 const API_BASE = ENV_API ? `${ENV_API}/api` : '/api';
 const LOCAL_CACHE_KEY = 'habittwin_local_logs_v1';
 
