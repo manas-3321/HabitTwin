@@ -5,7 +5,9 @@
  * if the backend server is offline so the UI always remains usable.
  */
 
-const API_BASE = '/api';
+// Support configurable backend URL for production cloud deployments (Vercel/Render)
+const ENV_API = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '';
+const API_BASE = ENV_API ? `${ENV_API}/api` : '/api';
 const LOCAL_CACHE_KEY = 'habittwin_local_logs_v1';
 
 async function request(path, options = {}) {

@@ -1,0 +1,25 @@
+services:
+  # Backend FastAPI Web Service
+  - type: web
+    name: habittwin-backend
+    env: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "python -m backend.run_server"
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: HOST
+        value: 0.0.0.0
+
+  # Frontend Static Site
+  - type: web
+    name: habittwin-frontend
+    env: static
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: "./frontend/dist"
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: habittwin-backend
+          property: host
