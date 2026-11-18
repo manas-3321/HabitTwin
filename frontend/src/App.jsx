@@ -28,6 +28,7 @@ import GenZAchievements from './components/GenZAchievements';
 import FutureLetter from './components/FutureLetter';
 import BehavioralTrends from './components/BehavioralTrends';
 import HabitTracker from './components/HabitTracker';
+import ShareProgressModal from './components/ShareProgressModal';
 
 const TABS = [
   { id: 'twins', label: 'Future Twins', icon: Compass },
@@ -50,6 +51,7 @@ export default function App() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSample, setLoadingSample] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // What-If Simulator State
   const [whatIfInputs, setWhatIfInputs] = useState({
@@ -330,6 +332,7 @@ export default function App() {
         hasLogs={logs.length > 0}
         onResetZero={handleClearAll}
         loadingReset={loadingReset}
+        onOpenShare={() => setShareModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -411,7 +414,7 @@ export default function App() {
             {/* Tab 1: Future Twins & Charts */}
             {activeTab === 'twins' && (
               <div className="space-y-8">
-                <ScenarioComparison prediction={prediction} />
+                <ScenarioComparison prediction={prediction} onOpenShare={() => setShareModalOpen(true)} />
                 <TrajectoryCharts prediction={prediction} logs={logs} onResetZero={handleClearAll} />
               </div>
             )}
@@ -437,6 +440,7 @@ export default function App() {
                   logs={logs}
                   analysis={analysis}
                   userName={userName}
+                  onOpenShare={() => setShareModalOpen(true)}
                 />
               </div>
             )}
@@ -488,6 +492,16 @@ export default function App() {
           </span>
         </div>
       </footer>
+      {/* Share Progress Modal */}
+      <ShareProgressModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        prediction={prediction}
+        logs={logs}
+        analysis={analysis}
+        userName={userName}
+        horizon={horizon}
+      />
     </div>
   );
 }

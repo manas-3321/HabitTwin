@@ -12,6 +12,7 @@ import {
   ArrowUpRight,
   Layers,
   Brain,
+  Share2,
 } from 'lucide-react';
 import FutureTwinAvatar from './FutureTwinAvatar';
 import { getCgpaColorClass, getCgpaBadgeClass, getCgpaHeatTile } from '../utils/cgpaColors';
@@ -62,7 +63,7 @@ function getPillarHeat(score) {
   };
 }
 
-function ScenarioSummaryCard({ scenario, accent, labelBadge }) {
+function ScenarioSummaryCard({ scenario, accent, labelBadge, onOpenShare = null }) {
   const { metrics, avatar, assumed_habits } = scenario;
   const isImproved = scenario.id === 'scenario_b_improved';
 
@@ -188,11 +189,22 @@ function ScenarioSummaryCard({ scenario, accent, labelBadge }) {
           Spend: <strong>₹{assumed_habits.daily_spending}/day</strong>
         </span>
       </div>
+
+      {/* Share Twin Action */}
+      {onOpenShare && (
+        <button
+          onClick={onOpenShare}
+          className="w-full mt-4 py-2 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 inline-flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+        >
+          <Share2 className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Share {scenario.name} Progress</span>
+        </button>
+      )}
     </div>
   );
 }
 
-export default function ScenarioComparison({ prediction }) {
+export default function ScenarioComparison({ prediction, onOpenShare = null }) {
   if (!prediction) return null;
 
   const { scenario_a_current: cur, scenario_b_improved: imp, delta_summary, horizon } = prediction;
@@ -311,10 +323,12 @@ export default function ScenarioComparison({ prediction }) {
         <ScenarioSummaryCard
           scenario={cur}
           labelBadge="Path A • If Nothing Changes"
+          onOpenShare={onOpenShare}
         />
         <ScenarioSummaryCard
           scenario={imp}
           labelBadge="Path B • Healthier Routine"
+          onOpenShare={onOpenShare}
         />
       </div>
 

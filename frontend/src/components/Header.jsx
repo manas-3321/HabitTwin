@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Sun, Moon, Clock, Database, Trash2 } from 'lucide-react';
+import { Sparkles, Sun, Moon, Clock, Database, Trash2, Share2 } from 'lucide-react';
 
 export default function Header({
   horizon,
@@ -11,6 +11,7 @@ export default function Header({
   hasLogs = false,
   onResetZero = null,
   loadingReset = false,
+  onOpenShare = null,
 }) {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200/80 dark:border-slate-800">
@@ -56,6 +57,18 @@ export default function Header({
               5 Years Ahead
             </button>
           </div>
+
+          {/* Share Progress Button */}
+          {onOpenShare && (
+            <button
+              onClick={onOpenShare}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800 transition-colors shadow-sm"
+              title="Share your Future Twin card and progress with friends"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share Progress</span>
+            </button>
+          )}
 
           {/* Load Sample Data Button */}
           <button

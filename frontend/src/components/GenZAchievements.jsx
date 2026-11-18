@@ -18,7 +18,7 @@ import {
   Wallet,
 } from 'lucide-react';
 
-export default function GenZAchievements({ logs = [], analysis = null, userName = 'Alex' }) {
+export default function GenZAchievements({ logs = [], analysis = null, userName = 'Alex', onOpenShare = null }) {
   const [showCertificate, setShowCertificate] = useState(false);
   const [selectedBadge, setSelectedBadge] = useState(null);
 
@@ -138,6 +138,15 @@ export default function GenZAchievements({ logs = [], analysis = null, userName 
               <div className="text-[10px] text-slate-500">
                 Best Era: <strong>{bestStreak} Days</strong> • {totalDays} total check-ins
               </div>
+              {onOpenShare && (
+                <button
+                  onClick={onOpenShare}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Share Progress</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -440,6 +449,18 @@ export default function GenZAchievements({ logs = [], analysis = null, userName 
                 <span>HabitTwin Digital Certificate</span>
               </span>
               <div className="flex items-center gap-2">
+                {onOpenShare && (
+                  <button
+                    onClick={() => {
+                      setShowCertificate(false);
+                      onOpenShare();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Share Progress</span>
+                  </button>
+                )}
                 <button
                   onClick={handlePrint}
                   className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"

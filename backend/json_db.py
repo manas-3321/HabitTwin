@@ -156,26 +156,33 @@ class JsonHabitDB:
 
     def upsert(self, data: dict) -> HabitLogRecord:
         raw_list = self._read_data()
-        target_date = data.get("date")
+        target_date = str(data.get("date", "")).split("T")[0]
+        data["date"] = target_date
         now_str = datetime.utcnow().isoformat()
 
-        existing_idx = -1
+        # Anti-spam constraint: strictly enforce at most 1 log per calendar date
+        existing_item = None
         max_id = 0
-        for idx, item in enumerate(raw_list):
+        cleaned_list = []
+        for item in raw_list:
             item_id = item.get("id", 0)
             if item_id > max_id:
                 max_id = item_id
             if item.get("date") == target_date:
-                existing_idx = idx
+                if existing_item is None:
+                    existing_item = dict(item)
+                # Any existing duplicate entries for this date are purged here
+            else:
+                cleaned_list.append(item)
 
-        if existing_idx >= 0:
-            item = raw_list[existing_idx]
+        if existing_item is not None:
+            # Overwrite existing record for this date cleanly
             for k, v in data.items():
                 if v is not None:
-                    item[k] = v
-            item["updated_at"] = now_str
-            record = HabitLogRecord(**item)
-            raw_list[existing_idx] = record.to_dict()
+                    existing_item[k] = v
+            existing_item["updated_at"] = now_str
+            record = HabitLogRecord(**existing_item)
+            cleaned_list.append(record.to_dict())
         else:
             new_id = max_id + 1
             payload = dict(data)
@@ -183,9 +190,11 @@ class JsonHabitDB:
             payload["created_at"] = now_str
             payload["updated_at"] = now_str
             record = HabitLogRecord(**payload)
-            raw_list.append(record.to_dict())
+            cleaned_list.append(record.to_dict())
 
-        self._write_data(raw_list)
+        # Keep chronological order
+        cleaned_list.sort(key=lambda x: x.get("date", ""))
+        self._write_data(cleaned_list)
         return record
 
     def update(self, log_id: int, updates: dict) -> Optional[HabitLogRecord]:
