@@ -5,7 +5,7 @@
 HabitTwin is an AI-assisted behavioral digital twin for personal self-improvement. It turns everyday routine data into behavioral insights, future simulations, and practical actions. Instead of only showing what you did yesterday, HabitTwin helps you explore what your current habits could mean six months or five years from now.
 
 <p align="center">
-  <a href="https://habittwin-frontend-cltd.vercel.app"><strong>🚀 Try the Live Demo</strong></a>
+  <a href="https://habittwin-frontend-78oq.vercel.app"><strong>🚀 Try the Live Demo</strong></a>
   &nbsp; · &nbsp;
   <a href="https://github.com/manas-3321/HabitTwin"><strong>Source Code</strong></a>
 </p>
