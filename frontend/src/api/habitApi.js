@@ -13,6 +13,8 @@ const ENV_API = import.meta.env.VITE_API_URL
 const API_BASE = ENV_API ? `${ENV_API}/api` : '/api';
 const LOCAL_CACHE_KEY = 'habittwin_local_logs_v1';
 const AUTH_TOKEN_KEY = 'habittwin_auth_token';
+const LOCAL_USERS_KEY = 'habittwin_local_users_v1';
+const LOCAL_CURRENT_USER_KEY = 'habittwin_current_user_v1';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -142,47 +144,134 @@ export async function generateFutureLetter({
 // ==========================================
 
 export async function registerUser({ name, email, password }) {
-  const data = await request('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ name, email, password }),
-  });
-  if (data?.token) {
-    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+  try {
+    const data = await request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+    if (data?.token) {
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+    }
+    if (data?.user) {
+      localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(data.user));
+    }
+    return data;
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('already exists')) {
+      throw err;
+    }
+    console.warn('Backend register failed, saving to local fallback storage:', err);
+    const localUsers = JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]');
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanName = String(name).trim() || 'Student';
+    if (localUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      throw new Error('An account with this email already exists.');
+    }
+    const newId = Date.now();
+    const newUser = {
+      id: newId,
+      name: cleanName,
+      email: cleanEmail,
+      password: password,
+      current_streak: 0,
+      best_streak: 0,
+      streak_freezes_available: 2,
+      streak_freezes_used: [],
+      cert_6m_sent: false,
+      cert_6m_sent_at: null,
+      cert_sent_to_email: null,
+      claimed_rewards: [],
+      created_at: new Date().toISOString(),
+    };
+    localUsers.push(newUser);
+    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(localUsers));
+    const token = `local_token_${newId}`;
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(newUser));
+    return { token, user: newUser };
   }
-  return data;
 }
 
 export async function loginUser({ email, password }) {
-  const data = await request('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-  if (data?.token) {
-    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+  try {
+    const data = await request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    if (data?.token) {
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+    }
+    if (data?.user) {
+      localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(data.user));
+    }
+    return data;
+  } catch (err) {
+    console.warn('Backend login attempt failed, checking local credentials:', err);
+    const localUsers = JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]');
+    const cleanEmail = String(email).trim().toLowerCase();
+    const matched = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (matched) {
+      if (matched.password === password) {
+        const token = `local_token_${matched.id}`;
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
+        localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(matched));
+        return { token, user: matched };
+      } else {
+        throw new Error('Invalid email or password.');
+      }
+    }
+    throw err;
   }
-  return data;
 }
 
 export async function fetchCurrentUser() {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (!token) return null;
+  if (token.startsWith('local_token_')) {
+    const stored = localStorage.getItem(LOCAL_CURRENT_USER_KEY);
+    return stored ? JSON.parse(stored) : null;
+  }
   try {
-    return await request('/auth/me');
+    const user = await request('/auth/me');
+    if (user) {
+      localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(user));
+    }
+    return user;
   } catch {
+    const stored = localStorage.getItem(LOCAL_CURRENT_USER_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
     localStorage.removeItem(AUTH_TOKEN_KEY);
     return null;
   }
 }
 
 export async function updateUserName(name) {
-  return request('/auth/update-name', {
-    method: 'POST',
-    body: JSON.stringify({ name }),
-  });
+  try {
+    const data = await request('/auth/update-name', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    if (data) {
+      localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(data));
+    }
+    return data;
+  } catch (err) {
+    const stored = localStorage.getItem(LOCAL_CURRENT_USER_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      parsed.name = name;
+      localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(parsed));
+      return parsed;
+    }
+    throw err;
+  }
 }
 
 export function logoutUser() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(LOCAL_CURRENT_USER_KEY);
 }
 
 // ==========================================

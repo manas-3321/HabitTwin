@@ -13,12 +13,19 @@ import {
 import { loginUser, registerUser } from '../api/habitApi';
 
 export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 'signin' }) {
-  const [mode, setMode] = useState(initialMode); // 'signin' | 'signup'
+  const [mode, setMode] = useState(typeof initialMode === 'string' && initialMode.toLowerCase() === 'signup' ? 'signup' : 'signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setMode(typeof initialMode === 'string' && initialMode.toLowerCase() === 'signup' ? 'signup' : 'signin');
+      setError('');
+    }
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 

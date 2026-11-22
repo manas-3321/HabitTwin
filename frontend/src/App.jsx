@@ -142,7 +142,8 @@ export default function App() {
   }, [refreshUserAndCert]);
 
   const handleOpenAuth = (mode = 'signin') => {
-    setAuthModalMode(mode);
+    const cleanMode = typeof mode === 'string' && mode.toLowerCase() === 'signup' ? 'signup' : 'signin';
+    setAuthModalMode(cleanMode);
     setShowAuthModal(true);
   };
 
