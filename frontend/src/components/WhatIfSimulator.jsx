@@ -50,39 +50,48 @@ export default function WhatIfSimulator({
   );
   const freeHours = Math.max(0, Math.round((24.0 - totalCommittedHours) * 10) / 10);
 
-  // Dynamic maximums for each slider within current 24-hour physical day boundary
-  const maxSleep = Math.max(4.0, Math.min(12.0, Math.floor((24.0 - (studyHours + leisureScreen + activityHours)) * 2) / 2));
-  const maxStudy = Math.max(0.5, Math.min(16.0, Math.floor((24.0 - (sleepHours + leisureScreen + activityHours)) * 2) / 2));
-  const maxStudyScreen = studyHours;
-  const maxLeisure = Math.max(0.0, Math.min(12.0, Math.floor((24.0 - (sleepHours + studyHours + activityHours)) * 2) / 2));
-  const maxExerciseHours = Math.max(0, 24.0 - (sleepHours + studyHours + leisureScreen));
-  const maxActivityMins = Math.max(0, Math.min(180, Math.floor(maxExerciseHours * 60)));
+  // Available budget remaining for any activity = 24.0 - (other activities)
+  const remainingForSleep = Math.max(0.0, 24.0 - (studyHours + leisureScreen + activityHours));
+  const maxSleep = Math.min(12.0, Math.floor(remainingForSleep * 2) / 2);
+  const minSleep = Math.min(3.0, maxSleep);
 
-  // Bounded Handlers for sliders
+  const remainingForStudy = Math.max(0.0, 24.0 - (sleepHours + leisureScreen + activityHours));
+  const maxStudy = Math.min(16.0, Math.floor(remainingForStudy * 2) / 2);
+  const minStudy = Math.min(0.5, maxStudy);
+
+  const maxStudyScreen = studyHours;
+
+  const remainingForLeisure = Math.max(0.0, 24.0 - (sleepHours + studyHours + activityHours));
+  const maxLeisure = Math.min(12.0, Math.floor(remainingForLeisure * 2) / 2);
+
+  const remainingForExercise = Math.max(0.0, 24.0 - (sleepHours + studyHours + leisureScreen));
+  const maxActivityMins = Math.min(180, Math.floor(remainingForExercise * 60));
+
+  // Bounded Handlers for sliders (ensures strict <= 24.0h guarantee)
   const handleSleepChange = (val) => {
-    const clamped = Math.min(val, maxSleep);
+    const clamped = Math.max(minSleep, Math.min(val, maxSleep));
     onChangeSlider('sleep_hours', clamped);
   };
 
   const handleStudyChange = (val) => {
-    const clamped = Math.min(val, maxStudy);
+    const clamped = Math.max(minStudy, Math.min(val, maxStudy));
     onChangeSlider('study_hours', clamped);
   };
 
   const handleStudyScreenChange = (val) => {
-    const clamped = Math.min(val, maxStudyScreen);
+    const clamped = Math.max(0, Math.min(val, maxStudyScreen));
     onChangeSlider('study_screen_hours', clamped);
     onChangeSlider('screen_time_hours', Math.round((clamped + leisureScreen) * 10) / 10);
   };
 
   const handleLeisureScreenChange = (val) => {
-    const clamped = Math.min(val, maxLeisure);
+    const clamped = Math.max(0, Math.min(val, maxLeisure));
     onChangeSlider('leisure_screen_hours', clamped);
     onChangeSlider('screen_time_hours', Math.round((studyScreen + clamped) * 10) / 10);
   };
 
   const handleActivityChange = (val) => {
-    const clamped = Math.min(val, maxActivityMins);
+    const clamped = Math.max(0, Math.min(val, maxActivityMins));
     onChangeSlider('physical_activity_minutes', clamped);
   };
 
@@ -263,8 +272,8 @@ export default function WhatIfSimulator({
             </div>
             <input
               type="range"
-              min="4"
-              max={maxSleep}
+              min={minSleep}
+              max={Math.max(minSleep, maxSleep)}
               step="0.5"
               value={sleepHours}
               onChange={(e) => handleSleepChange(parseFloat(e.target.value))}
@@ -289,8 +298,8 @@ export default function WhatIfSimulator({
             </div>
             <input
               type="range"
-              min="0.5"
-              max={maxStudy}
+              min={minStudy}
+              max={Math.max(minStudy, maxStudy)}
               step="0.5"
               value={studyHours}
               onChange={(e) => handleStudyChange(parseFloat(e.target.value))}
@@ -328,7 +337,7 @@ export default function WhatIfSimulator({
               <input
                 type="range"
                 min="0"
-                max={maxStudyScreen}
+                max={Math.max(0, maxStudyScreen)}
                 step="0.5"
                 value={studyScreen}
                 onChange={(e) => handleStudyScreenChange(parseFloat(e.target.value))}
@@ -355,7 +364,7 @@ export default function WhatIfSimulator({
               <input
                 type="range"
                 min="0"
-                max={maxLeisure}
+                max={Math.max(0, maxLeisure)}
                 step="0.5"
                 value={leisureScreen}
                 onChange={(e) => handleLeisureScreenChange(parseFloat(e.target.value))}
@@ -402,7 +411,7 @@ export default function WhatIfSimulator({
             <input
               type="range"
               min="0"
-              max={maxActivityMins}
+              max={Math.max(0, maxActivityMins)}
               step="5"
               value={activityMins}
               onChange={(e) => handleActivityChange(parseFloat(e.target.value))}
