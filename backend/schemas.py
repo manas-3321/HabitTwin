@@ -389,3 +389,38 @@ class StreakStatusResponse(BaseModel):
     can_restore: bool = False
     message: Optional[str] = None
 
+
+# =====================================================================
+# TinyFish Web Automation & Research Schemas
+# =====================================================================
+
+class TinyFishStatusResponse(BaseModel):
+    configured: bool
+    api_base: str
+    status: str
+    supported_features: List[str]
+
+
+class TinyFishRunRequest(BaseModel):
+    url: str = Field(..., description="Target website URL to automate or extract from")
+    goal: str = Field(..., description="Plain-English instructions for the AI web agent")
+    timeout: Optional[int] = Field(45, ge=5, le=120, description="Max runtime in seconds")
+
+
+class TinyFishResearchRequest(BaseModel):
+    topic: str = Field(..., description="Habit, wellness, or productivity topic to research")
+    target_url: Optional[str] = Field(None, description="Optional starting URL")
+    timeout: Optional[int] = Field(45, ge=5, le=120)
+
+
+class TinyFishResponse(BaseModel):
+    success: bool
+    status: str
+    run_id: Optional[str] = None
+    num_of_steps: Optional[int] = 0
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    result: Optional[Any] = None
+    error: Optional[Any] = None
+    message: Optional[str] = None
+

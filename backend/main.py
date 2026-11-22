@@ -37,11 +37,21 @@ from .schemas import (
     StreakRestoreRequest,
     StreakReplenishRequest,
     StreakStatusResponse,
+    TinyFishStatusResponse,
+    TinyFishRunRequest,
+    TinyFishResearchRequest,
+    TinyFishResponse,
 )
 from .analysis import analyze_behaviors, calculate_streaks
 from .predictive_engine import run_predictive_simulation
 from .llm_service import generate_future_self_letter
 from .seed_data import seed_database_records
+from .tinyfish_service import (
+    is_tinyfish_configured,
+    run_web_agent,
+    research_habit_topic,
+    TINYFISH_API_BASE,
+)
 
 
 @asynccontextmanager
@@ -759,3 +769,59 @@ def replenish_streak_freeze(
         can_restore=streaks.is_streak_broken and new_freezes > 0,
         message=f"⚡ +{amount} Streak Freeze granted! You now have {new_freezes} active freezes.",
     )
+
+
+# =====================================================================
+# 7. TinyFish Web Agent & Research Endpoints
+# =====================================================================
+
+@app.get("/api/tinyfish/status", response_model=TinyFishStatusResponse, tags=["TinyFish"])
+def get_tinyfish_status():
+    """
+    Returns the operational status of the TinyFish Web Agent integration.
+    """
+    configured = is_tinyfish_configured()
+    return TinyFishStatusResponse(
+        configured=configured,
+        api_base=TINYFISH_API_BASE,
+        status="ACTIVE" if configured else "UNCONFIGURED",
+        supported_features=[
+            "autonomous_web_agent",
+            "goal_driven_browser_navigation",
+            "habit_science_research",
+            "web_resource_extraction",
+        ],
+    )
+
+
+@app.post("/api/tinyfish/automate", response_model=TinyFishResponse, tags=["TinyFish"])
+def run_tinyfish_automation(payload: TinyFishRunRequest):
+    """
+    Executes a goal-driven browser automation task on a target URL using TinyFish.
+    """
+    if not is_tinyfish_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TinyFish integration is not configured. Set TINYFISH_API_KEY in backend/.env.",
+        )
+    res = run_web_agent(url=payload.url, goal=payload.goal, timeout=payload.timeout or 45)
+    return TinyFishResponse(**res)
+
+
+@app.post("/api/tinyfish/research", response_model=TinyFishResponse, tags=["TinyFish"])
+def run_tinyfish_research(payload: TinyFishResearchRequest):
+    """
+    Performs autonomous agent web research on habit science, sleep hygiene, or study methods.
+    """
+    if not is_tinyfish_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TinyFish integration is not configured. Set TINYFISH_API_KEY in backend/.env.",
+        )
+    res = research_habit_topic(
+        topic=payload.topic,
+        target_url=payload.target_url,
+        timeout=payload.timeout or 45,
+    )
+    return TinyFishResponse(**res)
+
