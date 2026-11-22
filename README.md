@@ -222,6 +222,37 @@ HabitTwin is an experimental self-reflection and educational simulation project.
 
 Contributions, suggestions, and issue reports are welcome. If you find a bug or have an idea that could make HabitTwin more useful, open an issue or submit a pull request.
 
+
+## Contributors
+
+Thanks to everyone who helped build HabitTwin.
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/nk634267-sudo">
+        <img src="https://github.com/nk634267-sudo.png" width="100px;" alt="nk634267-sudo"/>
+        <br />
+        <sub><b>nk634267-sudo</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/rastogiparth54-bot">
+        <img src="https://github.com/rastogiparth54-bot.png" width="100px;" alt="rastogiparth54-bot"/>
+        <br />
+        <sub><b>rastogiparth54-bot</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/Kishlay689">
+        <img src="https://github.com/Kishlay689.png" width="100px;" alt="Kishlay689"/>
+        <br />
+        <sub><b>Kishlay689</b></sub>
+      </a>
+    </td>
+  </tr>
+</table>
+
 ## Built With Purpose
 
 **HabitTwin — See how today's routine shapes tomorrow's you.**
