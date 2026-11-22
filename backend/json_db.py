@@ -259,3 +259,139 @@ json_db = JsonHabitDB()
 def get_db() -> JsonHabitDB:
     """Dependency provider for FastAPI route endpoints."""
     return json_db
+
+
+# =====================================================================
+# 2. User Accounts Document Store
+# =====================================================================
+
+USER_FILE_PATH = os.path.join(os.path.dirname(__file__), "habittwin_users.json")
+_user_lock = threading.Lock()
+
+
+class UserRecord:
+    """Represents a registered user account."""
+    def __init__(self, **kwargs):
+        self.id = int(kwargs.get("id", 0))
+        self.email = str(kwargs.get("email", "")).strip().lower()
+        self.name = str(kwargs.get("name", "Student")).strip()
+        self.password_hash = str(kwargs.get("password_hash", ""))
+        self.current_streak = int(kwargs.get("current_streak", 0))
+        self.best_streak = int(kwargs.get("best_streak", 0))
+        self.streak_freezes_available = int(kwargs.get("streak_freezes_available", 2))
+        self.streak_freezes_used = list(kwargs.get("streak_freezes_used", []))
+        self.cert_6m_sent = bool(kwargs.get("cert_6m_sent", False))
+        self.cert_6m_sent_at = kwargs.get("cert_6m_sent_at")
+        self.cert_sent_to_email = kwargs.get("cert_sent_to_email")
+        self.claimed_rewards = list(kwargs.get("claimed_rewards", []))
+        self.created_at = kwargs.get("created_at") or datetime.utcnow().isoformat()
+        self.updated_at = kwargs.get("updated_at") or datetime.utcnow().isoformat()
+
+    def to_dict(self, include_sensitive: bool = False) -> Dict[str, Any]:
+        data = {
+            "id": self.id,
+            "email": self.email,
+            "name": self.name,
+            "current_streak": self.current_streak,
+            "best_streak": self.best_streak,
+            "streak_freezes_available": self.streak_freezes_available,
+            "streak_freezes_used": self.streak_freezes_used,
+            "cert_6m_sent": self.cert_6m_sent,
+            "cert_6m_sent_at": self.cert_6m_sent_at,
+            "cert_sent_to_email": self.cert_sent_to_email,
+            "claimed_rewards": self.claimed_rewards,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+        if include_sensitive:
+            data["password_hash"] = self.password_hash
+        return data
+
+
+class JsonUserDB:
+    """Thread-safe JSON document store for registered users."""
+    def __init__(self, filepath: str = USER_FILE_PATH):
+        self.filepath = filepath
+        self._ensure_file()
+
+    def _ensure_file(self):
+        with _user_lock:
+            if not os.path.exists(self.filepath):
+                with open(self.filepath, "w", encoding="utf-8") as f:
+                    json.dump([], f, indent=2)
+
+    def _read_data(self) -> List[dict]:
+        with _user_lock:
+            if not os.path.exists(self.filepath):
+                return []
+            try:
+                with open(self.filepath, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+
+    def _write_data(self, data: List[dict]):
+        with _user_lock:
+            temp_path = f"{self.filepath}.tmp"
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            os.replace(temp_path, self.filepath)
+
+    def get_by_email(self, email: str) -> Optional[UserRecord]:
+        clean = str(email).strip().lower()
+        for item in self._read_data():
+            if item.get("email", "").strip().lower() == clean:
+                return UserRecord(**item)
+        return None
+
+    def get_by_id(self, user_id: int) -> Optional[UserRecord]:
+        for item in self._read_data():
+            if item.get("id") == user_id:
+                return UserRecord(**item)
+        return None
+
+    def create_user(self, name: str, email: str, password_hash: str) -> UserRecord:
+        clean_email = str(email).strip().lower()
+        clean_name = str(name).strip() or "Student"
+        users = self._read_data()
+        for item in users:
+            if item.get("email", "").strip().lower() == clean_email:
+                raise ValueError("An account with this email already exists.")
+        new_id = max([item.get("id", 0) for item in users], default=0) + 1
+        now_str = datetime.utcnow().isoformat()
+        user_dict = {
+            "id": new_id,
+            "name": clean_name,
+            "email": clean_email,
+            "password_hash": password_hash,
+            "current_streak": 0,
+            "best_streak": 0,
+            "cert_6m_sent": False,
+            "cert_6m_sent_at": None,
+            "cert_sent_to_email": None,
+            "claimed_rewards": [],
+            "created_at": now_str,
+            "updated_at": now_str,
+        }
+        users.append(user_dict)
+        self._write_data(users)
+        return UserRecord(**user_dict)
+
+    def update_user(self, user_id: int, updates: dict) -> Optional[UserRecord]:
+        users = self._read_data()
+        for i, item in enumerate(users):
+            if item.get("id") == user_id:
+                for k, v in updates.items():
+                    item[k] = v
+                item["updated_at"] = datetime.utcnow().isoformat()
+                users[i] = item
+                self._write_data(users)
+                return UserRecord(**item)
+        return None
+
+
+user_db = JsonUserDB()
+
+
+def get_user_db() -> JsonUserDB:
+    return user_db

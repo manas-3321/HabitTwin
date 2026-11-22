@@ -18,8 +18,12 @@ import {
   fetchBehavioralAnalysis,
   runPrediction,
   generateFutureLetter,
+  fetchCurrentUser,
+  logoutUser,
+  fetchCertificateStatus,
 } from './api/habitApi';
 import { getFallbackPrediction } from './utils/fallbackPrediction';
+import { generateClientLetter } from './utils/letterGenerator';
 import Header from './components/Header';
 import ScenarioComparison from './components/ScenarioComparison';
 import TrajectoryCharts from './components/TrajectoryCharts';
@@ -29,6 +33,7 @@ import FutureLetter from './components/FutureLetter';
 import BehavioralTrends from './components/BehavioralTrends';
 import HabitTracker from './components/HabitTracker';
 import ShareProgressModal from './components/ShareProgressModal';
+import AuthModal from './components/AuthModal';
 
 const TABS = [
   { id: 'twins', label: 'Future Twins', icon: Compass },
@@ -51,21 +56,45 @@ export default function App() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSample, setLoadingSample] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareConfig, setShareConfig] = useState({
+    isOpen: false,
+    cardType: 'improved',
+  });
+
+  const handleOpenShare = (options = {}) => {
+    const cardType = options?.cardType || 'improved';
+    setShareConfig({
+      isOpen: true,
+      cardType,
+    });
+  };
+
+  const handleCloseShare = () => {
+    setShareConfig((prev) => ({ ...prev, isOpen: false }));
+  };
 
   // What-If Simulator State
-  const [whatIfInputs, setWhatIfInputs] = useState({
-    sleep_hours: 7.5,
-    study_hours: 4.0,
-    study_screen_hours: 3.5,
-    leisure_screen_hours: 2.0,
-    screen_time_hours: 5.5,
-    physical_activity_minutes: 45,
-    daily_spending: 50,
-    monthly_income: 1500,
-    monthly_allowance: 1500,
-    study_mode: 'regular',
-    mental_mood: 'balanced',
+  const [monthlyAllowance, setMonthlyAllowance] = useState(() => {
+    const saved = localStorage.getItem('habittwin_monthly_allowance');
+    return saved ? parseFloat(saved) : 1500;
+  });
+
+  const [whatIfInputs, setWhatIfInputs] = useState(() => {
+    const saved = localStorage.getItem('habittwin_monthly_allowance');
+    const allow = saved ? parseFloat(saved) : 1500;
+    return {
+      sleep_hours: 7.5,
+      study_hours: 4.0,
+      study_screen_hours: 3.5,
+      leisure_screen_hours: 2.0,
+      screen_time_hours: 5.5,
+      physical_activity_minutes: 45,
+      daily_spending: Math.round(allow / 30),
+      monthly_income: allow,
+      monthly_allowance: allow,
+      study_mode: 'regular',
+      mental_mood: 'balanced',
+    };
   });
   const whatIfTimerRef = useRef(null);
 
@@ -74,7 +103,68 @@ export default function App() {
   const [loadingLetter, setLoadingLetter] = useState(false);
   const [letterScenario, setLetterScenario] = useState('improved');
   const [letterTone, setLetterTone] = useState('motivational');
+  const [letterFocus, setLetterFocus] = useState('balanced');
+  const [letterHabitSource, setLetterHabitSource] = useState('logs');
   const [userName, setUserName] = useState('Alex');
+
+  // User Auth & Certificate State
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('signin');
+  const [certStatus, setCertStatus] = useState(null);
+
+  // Restore active user session & certificate status on launch
+  const refreshUserAndCert = useCallback(async () => {
+    try {
+      const userRes = await fetchCurrentUser();
+      const user = userRes?.user || userRes;
+      if (user && user.email) {
+        setCurrentUser(user);
+        if (user.name) {
+          setUserName(user.name);
+        }
+        const statusRes = await fetchCertificateStatus();
+        if (statusRes) {
+          setCertStatus(statusRes);
+        }
+      } else {
+        setCurrentUser(null);
+        setCertStatus(null);
+      }
+    } catch (err) {
+      console.warn('Could not restore auth session:', err);
+      setCurrentUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshUserAndCert();
+  }, [refreshUserAndCert]);
+
+  const handleOpenAuth = (mode = 'signin') => {
+    setAuthModalMode(mode);
+    setShowAuthModal(true);
+  };
+
+  const handleAuthSuccess = (data) => {
+    const user = data?.user || data;
+    if (user && user.email) {
+      setCurrentUser(user);
+      if (user.name) {
+        setUserName(user.name);
+      }
+    }
+    setShowAuthModal(false);
+    fetchCertificateStatus().then((res) => {
+      if (res) setCertStatus(res);
+    });
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setCertStatus(null);
+  };
 
   // Toggle dark class on <html>
   useEffect(() => {
@@ -136,22 +226,98 @@ export default function App() {
 
   // Load letter when relevant params change
   const loadLetter = useCallback(async () => {
-    if (offlineMode) return;
     setLoadingLetter(true);
-    try {
-      const res = await generateFutureLetter({
-        scenario: letterScenario,
-        horizon,
-        tone: letterTone,
-        userName: userName.trim() || 'Friend',
-      });
-      setLetter(res);
-    } catch (err) {
-      console.error('Could not generate letter:', err);
-    } finally {
-      setLoadingLetter(false);
+
+    // 1. Calculate user's actual baseline habits from logs or fallback
+    let baseline = prediction?.baseline_habits;
+    if (!baseline && logs.length > 0) {
+      const avg = (key) => logs.reduce((acc, l) => acc + (Number(l[key]) || 0), 0) / logs.length;
+      baseline = {
+        sleep_hours: Math.round(avg('sleep_hours') * 10) / 10,
+        screen_time_hours: Math.round(avg('screen_time_hours') * 10) / 10,
+        physical_activity_minutes: Math.round(avg('physical_activity_minutes')),
+        study_hours: Math.round(avg('study_hours') * 10) / 10,
+        daily_spending: Math.round(avg('total_spending') || 120),
+      };
     }
-  }, [letterScenario, horizon, letterTone, userName, offlineMode]);
+    if (!baseline) {
+      baseline = {
+        sleep_hours: 6.2,
+        screen_time_hours: 6.5,
+        physical_activity_minutes: 20,
+        study_hours: 2.2,
+        daily_spending: 380,
+      };
+    }
+
+    // 2. Calculate target habits based on habit source
+    let targetHabits = null;
+    if (letterHabitSource === 'whatif') {
+      targetHabits = {
+        sleep_hours: whatIfInputs.sleep_hours,
+        screen_time_hours: whatIfInputs.screen_time_hours,
+        physical_activity_minutes: whatIfInputs.physical_activity_minutes,
+        study_hours: whatIfInputs.study_hours,
+        daily_spending: whatIfInputs.daily_spending,
+      };
+    } else if (letterScenario === 'current') {
+      targetHabits = { ...baseline };
+    } else {
+      // Improved relative to baseline
+      targetHabits = {
+        sleep_hours: Math.min(8.2, Math.max(7.5, Math.round((baseline.sleep_hours + 1.0) * 10) / 10)),
+        screen_time_hours: Math.max(3.2, Math.min(5.0, Math.round((baseline.screen_time_hours - 1.8) * 10) / 10)),
+        physical_activity_minutes: Math.min(60, Math.max(40, baseline.physical_activity_minutes + 20)),
+        study_hours: Math.min(6.5, Math.max(4.0, Math.round((baseline.study_hours + 1.5) * 10) / 10)),
+        daily_spending: Math.max(80, Math.round(baseline.daily_spending * 0.65)),
+      };
+    }
+
+    const streakDays = logs.length || analysis?.summary_stats?.logging_streak || 0;
+    const latestNote = logs.length > 0 && logs[0].notes ? logs[0].notes : '';
+
+    try {
+      if (!offlineMode) {
+        const res = await generateFutureLetter({
+          scenario: letterScenario,
+          horizon,
+          tone: letterTone,
+          userName: userName.trim() || 'Alex',
+          userFocus: letterFocus,
+          currentHabits: baseline,
+          targetHabits: targetHabits,
+          streakDays: streakDays,
+          latestNotes: latestNote,
+        });
+        if (res && res.letter_content) {
+          setLetter(res);
+          setLoadingLetter(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend letter call failed, generating via client narrative engine:', err);
+    }
+
+    // Client-side fallback generator
+    const activeMetrics = letterScenario === 'improved'
+      ? (prediction?.scenario_custom?.metrics || prediction?.scenario_b_improved?.metrics)
+      : prediction?.scenario_a_current?.metrics;
+    const clientLetter = generateClientLetter({
+      userName: userName.trim() || 'Alex',
+      scenario: letterScenario,
+      horizon,
+      tone: letterTone,
+      habits: targetHabits,
+      metrics: activeMetrics || {},
+      baselineHabits: baseline,
+      userFocus: letterFocus,
+      streakDays: streakDays,
+      latestNotes: latestNote,
+    });
+    setLetter(clientLetter);
+    setLoadingLetter(false);
+  }, [letterScenario, horizon, letterTone, letterFocus, letterHabitSource, userName, offlineMode, prediction, whatIfInputs, logs, analysis]);
 
   // Initial mount
   useEffect(() => {
@@ -168,27 +334,69 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [horizon]);
 
-  // Load letter automatically on startup & whenever tone or scenario changes
+  // Load letter automatically on startup & whenever tone, scenario, focus, source, or name changes
   useEffect(() => {
-    if (!loadingInitial && !offlineMode) {
+    if (!loadingInitial) {
       loadLetter();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingInitial, offlineMode, letterScenario, letterTone]);
+  }, [loadingInitial, letterScenario, letterTone, letterFocus, letterHabitSource, userName]);
 
-  // Real-time debounced What-If slider handler
-  const handleSliderChange = (key, val) => {
+  // Reload letter when habits change or when switching to letter tab
+  const letterTimerRef = useRef(null);
+  useEffect(() => {
+    if (loadingInitial) return;
+    if (letterHabitSource === 'whatif' || activeTab === 'letter') {
+      if (letterTimerRef.current) clearTimeout(letterTimerRef.current);
+      letterTimerRef.current = setTimeout(() => {
+        loadLetter();
+      }, 250);
+    }
+  }, [whatIfInputs, letterHabitSource, activeTab, userName]);
+
+  // Real-time debounced What-If slider handler (strictly bounded by 24h day budget)
+  const handleSliderChange = (key, rawVal) => {
     setWhatIfInputs((prev) => {
+      let val = Number(rawVal);
+      const sleep = key === 'sleep_hours' ? val : (prev.sleep_hours ?? 7.5);
+      let study = key === 'study_hours' ? val : (prev.study_hours ?? 4.0);
+      let studyScreen = key === 'study_screen_hours' ? val : (prev.study_screen_hours ?? Math.min(study, 3.5));
+      let leisureScreen = key === 'leisure_screen_hours' ? val : (prev.leisure_screen_hours ?? 2.0);
+      let exerciseMins = key === 'physical_activity_minutes' ? val : (prev.physical_activity_minutes ?? 45);
+
+      // Enforce 24-hour physical day boundary: sum of active commitments cannot exceed 24h
+      const otherHours =
+        (key === 'sleep_hours' ? 0 : sleep) +
+        (key === 'study_hours' ? 0 : study) +
+        (key === 'leisure_screen_hours' ? 0 : leisureScreen) +
+        (key === 'physical_activity_minutes' ? 0 : exerciseMins / 60);
+
+      const maxAvailableForThis = Math.max(0, 24.0 - otherHours);
+
+      if (key === 'sleep_hours') val = Math.min(val, Math.floor(maxAvailableForThis * 2) / 2);
+      if (key === 'study_hours') val = Math.min(val, Math.floor(maxAvailableForThis * 2) / 2);
+      if (key === 'leisure_screen_hours') val = Math.min(val, Math.floor(maxAvailableForThis * 2) / 2);
+      if (key === 'physical_activity_minutes') val = Math.min(val, Math.floor(maxAvailableForThis * 60));
+
       const updated = { ...prev, [key]: val };
-      if (key === 'study_screen_hours' || key === 'leisure_screen_hours') {
-        const sScreen = key === 'study_screen_hours' ? val : (prev.study_screen_hours ?? 3.5);
-        const lScreen = key === 'leisure_screen_hours' ? val : (prev.leisure_screen_hours ?? 2.0);
-        updated.screen_time_hours = Math.round((sScreen + lScreen) * 10) / 10;
+
+      // Ensure study screen does not exceed total study hours
+      const activeStudy = key === 'study_hours' ? val : study;
+      let activeStudyScreen = key === 'study_screen_hours' ? val : studyScreen;
+      if (activeStudyScreen > activeStudy) {
+        activeStudyScreen = activeStudy;
+        updated.study_screen_hours = activeStudy;
       }
+      const activeLeisure = key === 'leisure_screen_hours' ? val : leisureScreen;
+      updated.screen_time_hours = Math.round((activeStudyScreen + activeLeisure) * 10) / 10;
+
       if (key === 'monthly_allowance' || key === 'monthly_income') {
-        updated.monthly_income = val;
-        updated.monthly_allowance = val;
-        updated.daily_spending = Math.round(val / 30);
+        const num = Math.round(Number(val) || 1500);
+        updated.monthly_income = num;
+        updated.monthly_allowance = num;
+        updated.daily_spending = Math.round(num / 30);
+        setMonthlyAllowance(num);
+        localStorage.setItem('habittwin_monthly_allowance', String(num));
       }
 
       if (offlineMode) {
@@ -212,6 +420,13 @@ export default function App() {
 
       return updated;
     });
+  };
+
+  const handleUpdateMonthlyAllowance = (val) => {
+    const num = Math.max(500, Math.round(Number(val) || 1500));
+    setMonthlyAllowance(num);
+    localStorage.setItem('habittwin_monthly_allowance', String(num));
+    handleSliderChange('monthly_allowance', num);
   };
 
   const handleResetWhatIf = async () => {
@@ -332,7 +547,11 @@ export default function App() {
         hasLogs={logs.length > 0}
         onResetZero={handleClearAll}
         loadingReset={loadingReset}
-        onOpenShare={() => setShareModalOpen(true)}
+        onOpenShare={() => handleOpenShare({ cardType: 'improved' })}
+        currentUser={currentUser}
+        onOpenAuth={handleOpenAuth}
+        onLogout={handleLogout}
+        certStatus={certStatus}
       />
 
       {/* Main Container */}
@@ -414,7 +633,7 @@ export default function App() {
             {/* Tab 1: Future Twins & Charts */}
             {activeTab === 'twins' && (
               <div className="space-y-8">
-                <ScenarioComparison prediction={prediction} onOpenShare={() => setShareModalOpen(true)} />
+                <ScenarioComparison prediction={prediction} onOpenShare={handleOpenShare} />
                 <TrajectoryCharts prediction={prediction} logs={logs} onResetZero={handleClearAll} />
               </div>
             )}
@@ -440,7 +659,11 @@ export default function App() {
                   logs={logs}
                   analysis={analysis}
                   userName={userName}
-                  onOpenShare={() => setShareModalOpen(true)}
+                  onOpenShare={handleOpenShare}
+                  currentUser={currentUser}
+                  onOpenAuth={handleOpenAuth}
+                  certStatus={certStatus}
+                  onRefreshCertStatus={refreshUserAndCert}
                 />
               </div>
             )}
@@ -454,10 +677,18 @@ export default function App() {
                 setScenario={setLetterScenario}
                 tone={letterTone}
                 setTone={setLetterTone}
+                userFocus={letterFocus}
+                setUserFocus={setLetterFocus}
+                habitSource={letterHabitSource}
+                setHabitSource={setLetterHabitSource}
                 userName={userName}
                 setUserName={setUserName}
                 horizon={horizon}
                 onRegenerate={loadLetter}
+                onOpenShare={handleOpenShare}
+                whatIfInputs={whatIfInputs}
+                onChangeSlider={handleSliderChange}
+                logs={logs}
               />
             )}
 
@@ -470,8 +701,14 @@ export default function App() {
                   onDeleteLog={handleDeleteLog}
                   onLoadSample={handleLoadSampleData}
                   onClearAll={handleClearAll}
+                  monthlyAllowance={monthlyAllowance}
+                  onUpdateAllowance={handleUpdateMonthlyAllowance}
                 />
-                <BehavioralTrends analysis={analysis} logs={logs} />
+                <BehavioralTrends
+                  analysis={analysis}
+                  logs={logs}
+                  monthlyAllowance={monthlyAllowance}
+                />
               </div>
             )}
           </>
@@ -494,13 +731,22 @@ export default function App() {
       </footer>
       {/* Share Progress Modal */}
       <ShareProgressModal
-        isOpen={shareModalOpen}
-        onClose={() => setShareModalOpen(false)}
+        isOpen={shareConfig.isOpen}
+        onClose={handleCloseShare}
+        initialCardType={shareConfig.cardType}
         prediction={prediction}
         logs={logs}
         analysis={analysis}
         userName={userName}
         horizon={horizon}
+        letter={letter}
+      />
+      {/* User Authentication Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+        initialMode={authModalMode}
       />
     </div>
   );

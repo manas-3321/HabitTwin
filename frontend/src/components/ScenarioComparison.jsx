@@ -193,7 +193,10 @@ function ScenarioSummaryCard({ scenario, accent, labelBadge, onOpenShare = null 
       {/* Share Twin Action */}
       {onOpenShare && (
         <button
-          onClick={onOpenShare}
+          onClick={() => {
+            const isCurrent = scenario.scenario_key === 'current' || scenario.name?.toLowerCase().includes('current');
+            onOpenShare({ cardType: isCurrent ? 'current' : 'improved', scenario });
+          }}
           className="w-full mt-4 py-2 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 inline-flex items-center justify-center gap-1.5 transition-colors shadow-sm"
         >
           <Share2 className="w-3.5 h-3.5 text-indigo-500" />
@@ -331,6 +334,19 @@ export default function ScenarioComparison({ prediction, onOpenShare = null }) {
           onOpenShare={onOpenShare}
         />
       </div>
+
+      {/* Duel Comparison Share Action */}
+      {onOpenShare && (
+        <div className="flex justify-center -mt-2">
+          <button
+            onClick={() => onOpenShare({ cardType: 'comparison' })}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 text-white shadow-md shadow-indigo-500/20 transition-all hover:scale-[1.01]"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Share Side-by-Side Twin Duel Card</span>
+          </button>
+        </div>
+      )}
 
       {/* Life Pillar Balance Comparison Heat Map Matrix */}
       <div className="rounded-3xl p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-5">

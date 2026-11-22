@@ -4,7 +4,7 @@ Defines request and response data contracts with strict validation and self-docu
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import date
 
 
@@ -135,6 +135,11 @@ class StreakMetrics(BaseModel):
     optimal_sleep_streak_days: int
     active_exercise_streak_days: int
     study_consistency_streak_days: int
+    freezes_available: int = 2
+    freezes_used: List[str] = []
+    is_streak_broken: bool = False
+    broken_date: Optional[str] = None
+    is_protected_today: bool = False
 
 
 class BehavioralSummary(BaseModel):
@@ -171,6 +176,18 @@ class WhatIfInputs(BaseModel):
     monthly_income: float = Field(15000.0, ge=0.0, le=200000.0)
     study_mode: Optional[str] = Field("regular", description="'regular' | 'exam_crunch'")
     mental_mood: Optional[str] = Field("balanced", description="'sharp' | 'balanced' | 'fatigued' | 'anxious'")
+
+    @model_validator(mode="after")
+    def enforce_24_hour_day_limit(self):
+        """Ensures the sum of scheduled daily activities never exceeds the 24-hour physical day."""
+        ex_hours = (self.physical_activity_minutes or 0.0) / 60.0
+        total_time = (self.sleep_hours or 0.0) + (self.study_hours or 0.0) + ex_hours
+        if total_time > 24.0:
+            scale = 24.0 / total_time
+            self.sleep_hours = round(self.sleep_hours * scale, 1)
+            self.study_hours = round(self.study_hours * scale, 1)
+            self.physical_activity_minutes = round(self.physical_activity_minutes * scale)
+        return self
 
 
 class DimensionScores(BaseModel):
@@ -259,11 +276,16 @@ class PredictionResponse(BaseModel):
 # ==========================================
 
 class LetterRequest(BaseModel):
-    """Payload to generate a personalized letter from your digital future self."""
+    """Payload to generate a deeply personalized letter from your digital future self."""
     scenario: str = Field("improved", description="'current' | 'improved' | 'custom'")
-    horizon: str = Field("5_years", description="'6_months' | '5_years'")
+    horizon: str = Field("6_months", description="'6_months' | '5_years'")
     tone: str = Field("motivational", description="'motivational' | 'honest' | 'gentle'")
     user_name: Optional[str] = Field("Explorer", description="Preferred name of the user")
+    user_focus: Optional[str] = Field("balanced", description="'academics' | 'health' | 'wealth' | 'balanced'")
+    current_habits: Optional[Dict[str, float]] = Field(None, description="User's actual baseline habits from logs")
+    target_habits: Optional[Dict[str, float]] = Field(None, description="Target/custom habits for projection")
+    streak_days: Optional[int] = Field(0, description="User's current habit consistency streak in days")
+    latest_notes: Optional[str] = Field("", description="Latest journal notes or qualitative reflection")
 
 
 class LetterResponse(BaseModel):
@@ -274,4 +296,96 @@ class LetterResponse(BaseModel):
     title: str
     letter_content: str
     suggestions: List[str]
-    generated_by: str  # 'anthropic_claude' or 'simulation_engine'
+    generated_by: str  # 'google_gemini', 'anthropic_claude', or 'simulation_engine'
+    theme_badge: Optional[str] = None
+    key_quote: Optional[str] = None
+    horizon_label: Optional[str] = None
+    superpower: Optional[str] = None
+    vulnerability: Optional[str] = None
+    habit_snapshot: Optional[Dict[str, Any]] = None
+    user_focus: Optional[str] = None
+
+
+# ==========================================
+# 5. User Account & Authentication Schemas
+# ==========================================
+
+class UserRegisterRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=4, max_length=128)
+
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    current_streak: int = 0
+    best_streak: int = 0
+    streak_freezes_available: int = 2
+    streak_freezes_used: List[str] = []
+    cert_6m_sent: bool = False
+    cert_6m_sent_at: Optional[str] = None
+    cert_sent_to_email: Optional[str] = None
+    claimed_rewards: List[str] = []
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserResponse
+
+
+class SendCertificateRequest(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    force_test: bool = False
+
+
+class CertificateStatusResponse(BaseModel):
+    cert_6m_sent: bool
+    cert_6m_sent_at: Optional[str] = None
+    cert_sent_to_email: Optional[str] = None
+    current_streak: int = 0
+    best_streak: int = 0
+    eligible: bool = False
+
+
+# ==========================================
+# 6. Streak Freeze & Streak Restore Schemas
+# ==========================================
+
+class StreakFreezeRequest(BaseModel):
+    date: Optional[str] = None  # YYYY-MM-DD; if omitted, defaults to missed day
+    auto_protect: bool = True
+
+
+class StreakRestoreRequest(BaseModel):
+    date: Optional[str] = None  # Specific missed date to bridge; defaults to yesterday
+    reason: Optional[str] = "streak_recovery"
+
+
+class StreakReplenishRequest(BaseModel):
+    amount: int = 1
+    reason: Optional[str] = "discipline_reward"
+
+
+class StreakStatusResponse(BaseModel):
+    current_streak: int
+    best_streak: int
+    freezes_available: int = 2
+    freezes_used: List[str] = []
+    is_streak_broken: bool = False
+    broken_date: Optional[str] = None
+    is_protected_today: bool = False
+    can_restore: bool = False
+    message: Optional[str] = None
+

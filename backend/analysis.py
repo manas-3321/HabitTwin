@@ -4,7 +4,7 @@ Computes streaks, statistical distributions, consistency scores,
 and Pearson correlation coefficients between tracked lifestyle habits using NumPy.
 """
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 import numpy as np
 from datetime import datetime, timedelta
 
@@ -17,10 +17,15 @@ from .schemas import (
 )
 
 
-def calculate_streaks(logs: List[HabitLog]) -> StreakMetrics:
+def calculate_streaks(
+    logs: List[HabitLog],
+    freeze_dates: Optional[List[str]] = None,
+    freezes_available: int = 2,
+) -> StreakMetrics:
     """
     Computes active behavioral streaks working backwards from the latest log date.
     A streak counts consecutive days meeting specific health/productivity thresholds.
+    Supports Streak Freezes: frozen days bridge gaps without breaking consecutive momentum.
     """
     if not logs:
         return StreakMetrics(
@@ -28,17 +33,50 @@ def calculate_streaks(logs: List[HabitLog]) -> StreakMetrics:
             optimal_sleep_streak_days=0,
             active_exercise_streak_days=0,
             study_consistency_streak_days=0,
+            freezes_available=freezes_available,
+            freezes_used=freeze_dates or [],
+            is_streak_broken=False,
+            broken_date=None,
+            is_protected_today=False,
         )
+
+    frozen_set = set()
+    if freeze_dates:
+        for fd in freeze_dates:
+            try:
+                frozen_set.add(datetime.strptime(fd, "%Y-%m-%d").date())
+            except Exception:
+                pass
 
     sorted_logs = sorted(logs, key=lambda x: x.date)
     log_map = {datetime.strptime(log.date, "%Y-%m-%d").date(): log for log in sorted_logs}
-    latest_date = max(log_map.keys())
+    all_dates = set(log_map.keys()) | frozen_set
+    latest_date = max(all_dates) if all_dates else max(log_map.keys())
+
+    today = datetime.utcnow().date()
+    yesterday = today - timedelta(days=1)
+
+    # Streak broken check: if latest recorded activity is older than yesterday
+    is_streak_broken = False
+    broken_date = None
+    if latest_date < yesterday:
+        is_streak_broken = True
+        broken_date = yesterday.isoformat()
+
+    is_protected_today = (yesterday in frozen_set) or (today in frozen_set)
 
     def get_consecutive_streak(predicate) -> int:
         streak = 0
         current_day = latest_date
-        while current_day in log_map:
-            if predicate(log_map[current_day]):
+        while True:
+            if current_day in log_map:
+                if predicate(log_map[current_day]):
+                    streak += 1
+                    current_day -= timedelta(days=1)
+                else:
+                    break
+            elif current_day in frozen_set:
+                # Protected freeze day bridges the streak unbroken
                 streak += 1
                 current_day -= timedelta(days=1)
             else:
@@ -56,6 +94,11 @@ def calculate_streaks(logs: List[HabitLog]) -> StreakMetrics:
         study_consistency_streak_days=get_consecutive_streak(
             lambda log: (log.study_hours or 0.0) >= 2.5
         ),
+        freezes_available=freezes_available,
+        freezes_used=freeze_dates or [],
+        is_streak_broken=is_streak_broken,
+        broken_date=broken_date,
+        is_protected_today=is_protected_today,
     )
 
 

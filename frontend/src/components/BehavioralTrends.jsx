@@ -31,11 +31,12 @@ function cleanNarrativeText(text) {
   return (text || '').replace(/\s*\(r\s*=\s*-?\d+(\.\d+)?\)/gi, '');
 }
 
-export default function BehavioralTrends({ analysis, logs = [] }) {
+export default function BehavioralTrends({ analysis, logs = [], monthlyAllowance = 1500 }) {
   if (!analysis) return null;
 
   const { summary, streaks, correlations, insights } = analysis;
   const spendTotal = summary.avg_daily_spending || 1;
+  const targetDaily = Math.round((Number(monthlyAllowance) || 1500) / 30);
   const categories = [
     { name: 'Food & Dining', val: summary.spending_breakdown?.food || 0, color: 'bg-amber-500' },
     { name: 'Entertainment', val: summary.spending_breakdown?.entertainment || 0, color: 'bg-indigo-500' },
@@ -129,28 +130,49 @@ export default function BehavioralTrends({ analysis, logs = [] }) {
         </div>
 
         {/* Where Daily Spending Goes */}
-        <div className="rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">
-            Where Your Daily Budget Goes
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            Average ₹{Math.round(summary.avg_daily_spending).toLocaleString('en-IN')} per day across categories
-          </p>
-          <div className="space-y-3">
-            {categories.map((cat) => {
-              const pct = Math.min(100, Math.round((cat.val / spendTotal) * 100));
-              return (
-                <div key={cat.name}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-medium text-slate-700 dark:text-slate-300">{cat.name}</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">₹{Math.round(cat.val).toLocaleString('en-IN')}</span>
+        <div className="rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Where Your Daily Budget Goes
+              </h3>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg">
+                ₹{Number(monthlyAllowance).toLocaleString('en-IN')}/mo allowance
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Avg ₹{Math.round(summary.avg_daily_spending).toLocaleString('en-IN')}/day • Allowance target ~₹{targetDaily}/day
+            </p>
+            <div className="space-y-3">
+              {categories.map((cat) => {
+                const pct = Math.min(100, Math.round((cat.val / spendTotal) * 100));
+                return (
+                  <div key={cat.name}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{cat.name}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">₹{Math.round(cat.val).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className={`h-full ${cat.color} rounded-full`} style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div className={`h-full ${cat.color} rounded-full`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Allowance Pacing Status Footer */}
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500">Allowance Pacing:</span>
+            {summary.avg_daily_spending <= targetDaily ? (
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                ✅ Under allowance pace (+₹{Math.round(monthlyAllowance - summary.avg_daily_spending * 30).toLocaleString('en-IN')} projected cushion)
+              </span>
+            ) : (
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
+                ⚡ Pacing ₹{Math.round(summary.avg_daily_spending - targetDaily)}/day above allowance
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -1,0 +1,76 @@
+[
+  {
+    "id": 1,
+    "name": "Alex Student",
+    "email": "alex_test@college.edu",
+    "password_hash": "dd951b18b473849004cebb512257d729$0193aa51d153a7d80460ebeb12e83d8c9cd369ac4f7b27fd0c473435357530ee",
+    "current_streak": 150,
+    "best_streak": 150,
+    "cert_6m_sent": true,
+    "cert_6m_sent_at": "2026-11-22T05:41:41.424136",
+    "cert_sent_to_email": "alex_test@college.edu",
+    "claimed_rewards": [],
+    "created_at": "2026-11-22T05:41:41.295617",
+    "updated_at": "2026-11-22T05:41:41.424136"
+  },
+  {
+    "id": 2,
+    "name": "Test Runner",
+    "email": "runner@habittwin.com",
+    "password_hash": "169d495b70ae3ce92b0d2072d8ed65ce$f6b2e1d5bc12895e8e7b1add3725245ae77cbc3584c49a2e4767a2ed687a6962",
+    "current_streak": 0,
+    "best_streak": 0,
+    "cert_6m_sent": false,
+    "cert_6m_sent_at": null,
+    "cert_sent_to_email": null,
+    "claimed_rewards": [],
+    "created_at": "2026-11-22T05:47:45.500024",
+    "updated_at": "2026-11-22T05:47:45.500024"
+  },
+  {
+    "id": 3,
+    "name": "Test Runner 2",
+    "email": "runner2@habittwin.com",
+    "password_hash": "cf523bcf9a7e8f0f548cd5c61f83670d$be8d9eae4b2956f8e76879c46858e92fc452cade9ff994a4797284f9ee311ba6",
+    "current_streak": 150,
+    "best_streak": 150,
+    "cert_6m_sent": false,
+    "cert_6m_sent_at": null,
+    "cert_sent_to_email": null,
+    "claimed_rewards": [],
+    "created_at": "2026-11-22T05:47:53.466951",
+    "updated_at": "2026-11-22T05:47:53.513437"
+  },
+  {
+    "id": 4,
+    "name": "Test Runner 3",
+    "email": "runner3@habittwin.com",
+    "password_hash": "3fc58385ce2ae434d95c845a220cdcff$07b706e90a59f77b018448f9f514ecaed36ea0cc0091bcf1c40ce077bd01ed33",
+    "current_streak": 150,
+    "best_streak": 150,
+    "cert_6m_sent": true,
+    "cert_6m_sent_at": "2026-11-22T05:49:21.497970",
+    "cert_sent_to_email": "runner3@habittwin.com",
+    "claimed_rewards": [],
+    "created_at": "2026-11-22T05:49:21.170164",
+    "updated_at": "2026-11-22T05:49:21.497970"
+  },
+  {
+    "id": 5,
+    "name": "Freeze Tester",
+    "email": "freezetest@habittwin.com",
+    "password_hash": "d0b9b60533ce4b94ca8977bfc8132399$1c87f5511f224b0cf46c31be16fd0d4913b2f4e1c6abce97a3d05fb731d27910",
+    "current_streak": 150,
+    "best_streak": 150,
+    "cert_6m_sent": false,
+    "cert_6m_sent_at": null,
+    "cert_sent_to_email": null,
+    "claimed_rewards": [],
+    "created_at": "2026-11-22T06:00:10.400615",
+    "updated_at": "2026-11-22T06:00:10.428999",
+    "streak_freezes_available": 2,
+    "streak_freezes_used": [
+      "2026-11-21"
+    ]
+  }
+]

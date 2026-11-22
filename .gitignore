@@ -22,6 +22,10 @@ backend/.env
 backend/.env.local
 .env.production
 
+# Generated certificates & backups
+backend/certificates_generated/
+*.backup.pptx
+
 # IDE & OS
 .vscode/
 .idea/

@@ -22,13 +22,14 @@ export function getFallbackPrediction(horizon = '6_months', whatIf = null) {
   const curScreen = baseline.screen_time_hours;
   const curActivity = baseline.physical_activity_minutes;
   const curSpend = baseline.daily_spending;
+  const baseAllowance = whatIf?.monthly_allowance ?? whatIf?.monthly_income ?? 1500;
 
   // Algorithmic CGPA estimate
   const baseGpa = Math.min(9.8, Math.max(4.0, 6.2 + curStudy * 0.45 + (curSleep >= 7 && curSleep <= 9 ? 0.4 : -0.3) - (curScreen > 5 ? 0.3 : 0)));
   const baseHealth = Math.min(95, Math.max(30, 50 + (curActivity / 60) * 25 + (curSleep >= 7 ? 15 : 0) - (curScreen > 6 ? 10 : 0)));
   const baseEnergy = Math.min(95, Math.max(25, 45 + (curSleep >= 7 ? 25 : 0) + (curActivity > 30 ? 15 : 0) - (curScreen > 5 ? 15 : 0)));
   const baseBurnout = Math.min(85, Math.max(5, (curScreen > 6 ? 35 : 15) + (curSleep < 6 ? 30 : 5) + (curStudy > 8 ? 20 : 0)));
-  const baseSavings = Math.max(0, (1500 - curSpend * 30) * (is5Years ? 60 : 6));
+  const baseSavings = Math.max(0, (baseAllowance - curSpend * 30) * (is5Years ? 60 : 6));
 
   const buildTrajectory = (gpaStart, gpaEnd, healthStart, healthEnd) => {
     const points = [];
@@ -64,9 +65,9 @@ export function getFallbackPrediction(horizon = '6_months', whatIf = null) {
       energy_score: Number(baseEnergy.toFixed(1)),
       burnout_risk: Number(baseBurnout.toFixed(1)),
       projected_savings: Math.round(baseSavings),
-      monthly_net_cashflow: Math.round(1500 - curSpend * 30),
+      monthly_net_cashflow: Math.round(baseAllowance - curSpend * 30),
       savings_rate_pct: 45,
-      financial_health_score: Math.min(95, Math.round(50 + (1500 - curSpend * 30) * 0.05)),
+      financial_health_score: Math.min(95, Math.round(50 + (baseAllowance - curSpend * 30) * 0.05)),
       overall_lifestyle_score: Number(((baseGpa * 10 + baseHealth + baseEnergy + (100 - baseBurnout)) / 4).toFixed(1)),
     },
     avatar: {
